@@ -3,11 +3,8 @@
 import random
 import matplotlib.pyplot as plt
 import numpy as np
-from numpy.matlib import maximum
 from collections import defaultdict
 from mesh import MeshNetwork
-from collections import deque
-from mpl_toolkits.axes_grid1 import make_axes_locatable
 from matplotlib.colors import LogNorm
 
 random.seed(74)
@@ -117,6 +114,83 @@ def plot_results(title_prefix,
     for name, r in zip(labels, [result_prob, result_min, result_det, result_xy]):
         print(f"{name:15} -> faults={r['total_faults']}, avg hops={r['avg_hops']:.2f}")
 
+def plot_results_multi(title_prefix, results_dict, w_fault=0.8, w_hop=0.2):
+    """
+    results_dict example:
+      {
+        "EHPRA": result_ehpra,
+        "HPRA": result_hpra,
+        "Minimal": result_min,
+        "Detour": result_det,
+        "XY": result_xy
+      }
+    """
+    labels = list(results_dict.keys())
+    results = [results_dict[k] for k in labels]
+
+    avg_hops = [r["avg_hops"] for r in results]
+    total_faults = [r["total_faults"] for r in results]
+
+    max_faults = max(total_faults) if total_faults else 1
+    max_hops = max(avg_hops) if avg_hops else 1
+
+    faults_norm = [f / max_faults for f in total_faults]
+    hops_norm = [h / max_hops for h in avg_hops]
+
+    overall_cost = [w_fault * fn + w_hop * hn for fn, hn in zip(faults_norm, hops_norm)]
+
+    fig, axes = plt.subplots(2, 2, figsize=(14, 10))
+
+    ax = axes[0][0]
+    ax.bar(labels, avg_hops,color=["#4F81BD", "#C0504D", "#9BBB59", "#FF9900","#FF9999"])
+    ax.set_title(f"{title_prefix} - Average Hop Count")
+    ax.set_ylabel("Avg hops")
+    ax.grid(axis="y", alpha=0.3)
+    add_bar_labels(ax, avg_hops, "{:.2f}", fontsize=11)
+
+    ax = axes[0][1]
+    ax.bar(labels, total_faults,color=["#4F81BD", "#C0504D", "#9BBB59", "#FF9900","#FF9999"])
+    ax.set_title(f"{title_prefix} - Fault Count")
+    ax.set_ylabel("Faults")
+    ax.grid(axis="y", alpha=0.3)
+    add_bar_labels(ax, total_faults, "{:.0f}", fontsize=11)
+
+    ax = axes[1][0]
+    # p evolution: اگر چند الگوریتم p دارند، بهترین کار اینه که فقط EHPRA و HPRA را رسم کنی
+    for name in labels:
+        p_vals = np.array(results_dict[name].get("p_values", []))
+        if len(p_vals) == 0:
+            continue
+        step = max(1, len(p_vals) // 2000)
+        p_down = p_vals[::step]
+        x_down = np.arange(len(p_down)) * step
+        window = 5
+        p_smooth = np.convolve(p_down, np.ones(window)/window, mode="same")
+        ax.scatter(x_down, p_smooth, s=10, alpha=0.6, label=name)
+
+    ax.set_title(f"{title_prefix} - P Value Evolution")
+    ax.set_xlabel("Trial")
+    ax.set_ylabel("p")
+    ax.grid(True, alpha=0.3)
+    if ax.get_legend_handles_labels()[0]:
+        ax.legend()
+
+    ax = axes[1][1]
+    ax.bar(labels, overall_cost,color=["#4F81BD", "#C0504D", "#9BBB59", "#FF9900","#FF9999"])
+    ax.set_title(f"{title_prefix} - Overall Cost")
+    ax.set_ylabel("Cost (Lower is Better)")
+    ax.grid(axis="y", alpha=0.3)
+    add_bar_labels(ax, overall_cost, "{:.3f}", fontsize=11)
+
+    plt.savefig(f"Results/{title_prefix}-figure.pdf", bbox_inches="tight")
+    plt.tight_layout()
+    plt.show()
+
+    print("\n=== SUMMARY ===")
+    for name in labels:
+        r = results_dict[name]
+        print(f"{name:10} -> faults={r['total_faults']}, avg hops={r['avg_hops']:.2f}")
+
 def simulate_algorithm(
         traffic_pattern: str,
         alg_name: str,
@@ -161,6 +235,9 @@ def simulate_algorithm(
 
         if alg_name == "HPRA":
             path1, path2, mode = routing.compute_HPRA_path(curr_src, dst, p)
+            
+        elif alg_name == "EHPRA":
+            path1, path2, mode = routing.compute_EHPRA_path(curr_src, dst, p,link_usage)
 
         elif alg_name == "minimal":
             path1, path2 = routing.compute_minimal_oblivious_path(curr_src, dst)
@@ -187,7 +264,7 @@ def simulate_algorithm(
                 had_fault = 1
                 fault_count += 1
 
-                if alg_name == "HPRA":
+                if alg_name in ("HPRA","EHPRA"):
                     if mode == "minimal":
                         p = min(1.0, p + p_up)
                     else:
@@ -197,7 +274,7 @@ def simulate_algorithm(
             if remaining_fault_trials <= 0:
                 current_faulty_link = None
 
-        if alg_name == "HPRA":
+        if alg_name in ("HPRA","EHPRA"):
             p = max(0.0, p - p_decay)
             p_values.append(p)
 
@@ -218,7 +295,7 @@ def simulate_algorithm(
                 current_faulty_link = (n1, n2)
                 remaining_fault_trials = fault_duration
 
-        if t % 20000 == 0:
+        if t % (trials//5) == 0:
             print(f"[{traffic_pattern}] Trial {t} for {alg_name}")
 
     return {
@@ -265,7 +342,7 @@ def simulate_algorithm_heatmap(
         had_fault = 0
 
         if alg_name == "HPRA":
-            path1, path2, mode = routing.compute_HPRA_path(curr_src, dst, p)
+            path1, path2, mode = routing.compute_EHPRA_path(curr_src, dst, p,link_usage)
         elif alg_name == "minimal":
             path1, path2 = routing.compute_minimal_oblivious_path(curr_src, dst)
         elif alg_name == "detour":
@@ -483,11 +560,60 @@ def test_hotlink_hotspot_compare():
     print(f"  Minimal:       faults={result_min_hs['total_faults']}, avg hops={result_min_hs['avg_hops']:.2f}")
     print(f"  Detour:        faults={result_det_hs['total_faults']}, avg hops={result_det_hs['avg_hops']:.2f}")
 
+def test_hotlink_five_algorithms():
+    mesh = MeshNetwork(16, 16)
+    src = mesh.get_node(2, 3)
+    dst = mesh.get_node(5, 6)
 
-test_hotlink_four_algorithms()
-test_hotspot_four_algorithms()
-test_heatmap_all_algorithms("Hotlink",trials=1_000_000)
-test_heatmap_all_algorithms("Hotspot",trials=1_000_000)
+    result_ehpra = simulate_algorithm("Hotlink", "EHPRA", mesh, src, dst)
+    result_hpra  = simulate_algorithm("Hotlink", "HPRA",  mesh, src, dst)
+    result_min   = simulate_algorithm("Hotlink", "minimal", mesh, src, dst)
+    result_det   = simulate_algorithm("Hotlink", "detour", mesh, src, dst)
+    result_xy    = simulate_algorithm("Hotlink", "xy", mesh, src, dst)
+
+    results = {
+        "EHPRA": result_ehpra,
+        "HPRA": result_hpra,
+        "Minimal": result_min,
+        "Detour": result_det,
+        "XY": result_xy,
+    }
+
+    plot_results_multi("Hotlink-5way", results)
+
+def test_hotspot_five_algorithms():
+    mesh = MeshNetwork(16, 16)
+    dst = mesh.get_node(8, 8)
+
+    def random_src():
+        while True:
+            n = random.choice(mesh.nodes)
+            if n.id != dst.id:
+                return n
+
+    result_ehpra = simulate_algorithm("Hotspot", "EHPRA", mesh, None, dst, dynamic_src_fn=random_src)
+    result_hpra  = simulate_algorithm("Hotspot", "HPRA",  mesh, None, dst, dynamic_src_fn=random_src)
+    result_min   = simulate_algorithm("Hotspot", "minimal", mesh, None, dst, dynamic_src_fn=random_src)
+    result_det   = simulate_algorithm("Hotspot", "detour", mesh, None, dst, dynamic_src_fn=random_src)
+    result_xy    = simulate_algorithm("Hotspot", "xy", mesh, None, dst, dynamic_src_fn=random_src)
+
+    results = {
+        "EHPRA": result_ehpra,
+        "HPRA": result_hpra,
+        "Minimal": result_min,
+        "Detour": result_det,
+        "XY": result_xy,
+    }
+
+    plot_results_multi("Hotspot-5way", results)
+
+
+test_hotlink_five_algorithms()
+test_hotspot_five_algorithms()
+# test_hotlink_four_algorithms()
+# test_hotspot_four_algorithms()
+# test_heatmap_all_algorithms("Hotlink",trials=1_000_000)
+# test_heatmap_all_algorithms("Hotspot",trials=1_000_000)
 
 
 

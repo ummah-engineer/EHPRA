@@ -241,7 +241,7 @@ class MeshGUIFancy:
             self.info_label.config(
                 text=f"Source: ({self.src_node.col},{self.src_node.row}) "
                      f"Dest: ({self.dst_node.col},{self.dst_node.row}) "
-                     f"Hops(p): {hops_minimal} Algo: p Mode:{mode} p={0.5:.3f}"
+                     f"Hops(p): {hops_minimal} Algo: HPRA Mode:{mode} p={0.5:.3f}"
             )
 
     def on_algo_change(self, value):
