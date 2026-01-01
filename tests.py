@@ -197,7 +197,7 @@ def simulate_algorithm(
         mesh,
         src,
         dst,
-        trials=1_000_00,
+        trials=1_000_000,
         fault_period=10,
         fault_duration=5,
         hot_threshold=3,

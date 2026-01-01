@@ -1,13 +1,13 @@
 === HOTSPOT SUMMARY ===
-EHPRA      -> faults=14969, avg hops=12.98
-HPRA       -> faults=16788, avg hops=10.07
-Minimal    -> faults=19384, avg hops=10.04
-Detour     -> faults=23193, avg hops=25.44
-XY         -> faults=24991, avg hops=9.04
+EHPRA      -> faults=150320, avg hops=13.02
+HPRA       -> faults=167566, avg hops=10.07
+Minimal    -> faults=193770, avg hops=10.03
+Detour     -> faults=232711, avg hops=25.43
+XY         -> faults=250971, avg hops=9.03
 
 === HOTLINK SUMMARY ===
-EHPRA      -> faults=21457, avg hops=12.58
-HPRA       -> faults=29371, avg hops=14.20
-Minimal    -> faults=37743, avg hops=8.00
-Detour     -> faults=45814, avg hops=28.81
-XY         -> faults=49995, avg hops=7.00
+EHPRA      -> faults=213375, avg hops=12.66
+HPRA       -> faults=293112, avg hops=14.09
+Minimal    -> faults=375388, avg hops=8.00
+Detour     -> faults=458702, avg hops=28.83
+XY         -> faults=499995, avg hops=7.00
