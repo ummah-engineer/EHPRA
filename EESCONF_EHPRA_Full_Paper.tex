@@ -1,0 +1,253 @@
+\documentclass[10pt,a4paper]{article}
+\usepackage[a4paper,margin=25mm]{geometry}
+\usepackage{newtxtext,newtxmath}
+\usepackage{graphicx}
+\usepackage{booktabs}
+\usepackage{array}
+\usepackage{amsmath}
+\usepackage{float}
+\usepackage{caption}
+\usepackage{setspace}
+\usepackage{titlesec}
+\usepackage{fancyhdr}
+\usepackage[hidelinks]{hyperref}
+
+\setlength{\parindent}{0pt}
+\setlength{\parskip}{4pt}
+\linespread{1.0}
+\pagestyle{fancy}
+\fancyhf{}
+\fancyfoot[C]{\thepage}
+\renewcommand{\headrulewidth}{0pt}
+
+\titleformat{\section}{\fontsize{11}{13}\bfseries}{\thesection.}{0.6em}{}
+\titleformat{\subsection}{\fontsize{10}{12}\bfseries}{\thesubsection}{0.6em}{}
+\captionsetup{font=small}
+
+\begin{document}
+
+% Conference header image provided by organizer
+\begin{center}
+    \includegraphics[width=\textwidth]{eesconf.ir_1758539471.png}
+\end{center}
+
+\vspace{2mm}
+
+{\centering\fontsize{12}{14}\bfseries
+EHPRA: Enhanced Hybrid Probabilistic Routing Algorithm with Smart Detour for Fault- and Congestion-Aware 2D Mesh NoC\par}
+
+\vspace{6mm}
+
+{\centering\fontsize{10}{12}\bfseries Amir Ahkbari\par}
+{\centering\fontsize{10}{12}\itshape MSc. student of Amirkabir University of Technology\par}
+
+\vspace{2mm}
+
+{\centering\fontsize{10}{12}\bfseries Hosein Khoojooyan\par}
+{\centering\fontsize{10}{12}\itshape MSc. student of Amirkabir University of Technology\par}
+
+\vspace{2mm}
+
+{\centering\fontsize{10}{12}\bfseries Dr. Mohsen Tarighi\par}
+{\centering\fontsize{10}{12}\itshape Professor at Amirkabir University of Technology\par}
+
+\vspace{6mm}
+
+{\fontsize{11}{13}\bfseries Abstract}\par
+Network-on-Chip (NoC) routing in many-core systems must satisfy two conflicting requirements: low-latency packet delivery and resilience against congestion-induced failures in heavily used links. This paper presents EHPRA (Enhanced Hybrid Probabilistic Routing Algorithm), a lightweight extension of HPRA for 2D mesh NoCs that introduces a Smart Detour mechanism to improve routing quality under hotlink and hotspot traffic conditions. Unlike random detour approaches, EHPRA evaluates multiple intermediate candidates and selects the least congested path using a destination-aware congestion score plus a hop penalty. The algorithm preserves HPRA's probabilistic adaptation concept while improving path selection quality through local link-usage history. A simulation framework on a 16$\times$16 mesh compares EHPRA against HPRA, Minimal-Oblivious, Random Detour, and XY routing over one million trials per scenario. Results show that EHPRA achieves the lowest fault counts in both hotspot (150,320) and hotlink (213,375) tests. Compared with HPRA, EHPRA reduces faults by 10.29\% in hotspot traffic and 27.20\% in hotlink traffic. Although EHPRA may increase average hops versus strictly minimal algorithms, it provides the best reliability-latency trade-off, achieving the minimum weighted overall cost across all compared methods.
+
+\textbf{Keywords:} Network-on-Chip, 2D Mesh, Adaptive Routing, Fault Tolerance, Congestion Awareness, Smart Detour, HPRA, EHPRA
+
+\section{Introduction}
+As the number of on-chip cores grows, the communication fabric becomes a dominant performance bottleneck in many-core processors. Two-dimensional mesh topologies remain popular due to layout regularity, scalability, and implementation simplicity. However, deterministic minimal routing, such as XY, tends to overuse specific links in non-uniform traffic patterns and is therefore vulnerable to congestion and repeated link-level faults.
+
+In practical NoC workloads, two stress patterns are frequently studied: (i) hotlink traffic, where repeated communication saturates a fixed source-destination corridor, and (ii) hotspot traffic, where many sources communicate with one destination region. Both patterns can create persistent high-risk links that are repeatedly affected by congestion and dynamic faults.
+
+The previously published Hybrid Probabilistic Routing Algorithm (HPRA) addressed this issue by switching between minimal and detour routing according to an adaptive probability parameter $p$. While HPRA improves robustness, its detour component still relies on relatively simple path construction and can produce suboptimal intermediate-node choices.
+
+This paper proposes EHPRA, which replaces random detour behavior with a Smart Detour policy that evaluates multiple candidate detours based on local link-usage history and destination-aware weighting. The central hypothesis is that better detour-node selection can significantly reduce fault exposure under hotspot/hotlink conditions while preserving algorithmic simplicity suitable for hardware-oriented routing logic.
+
+The main contributions are listed below:
+\begin{enumerate}
+    \item A Smart Detour candidate-evaluation mechanism integrated into probabilistic hybrid routing.
+    \item A destination-aware congestion score that prioritizes decongestion near the destination, especially useful in hotspot traffic.
+    \item Reproducible simulation-based evaluation against four baselines (HPRA, Minimal, Detour, and XY) under fault-injected traffic.
+    \item Quantitative evidence that EHPRA provides the best reliability-cost trade-off in both tested scenarios.
+\end{enumerate}
+
+\section{Background and Related Routing Approaches}
+\subsection{Deterministic Minimal Routing (XY)}
+XY routing follows dimension-ordered minimal paths and is deadlock-safe in regular meshes. Its simplicity is valuable, but repeated traffic flows overload fixed links.
+
+\subsection{Minimal-Oblivious Routing}
+Minimal-oblivious routing uses randomized intermediate points while remaining in minimal-path constraints. It provides path diversity but lacks explicit congestion awareness.
+
+\subsection{Random Detour Routing}
+Detour routing sends packets through intermediate nodes outside the source-destination bounding box. This increases path diversity and bypass opportunities, but random intermediate selection often creates long or inefficient routes.
+
+\subsection{HPRA}
+HPRA combines minimal-oblivious and detour routing probabilistically. The mode selection probability $p$ increases after faults in minimal mode and decays over time, giving adaptive exploration behavior.
+
+\subsection{Gap Addressed by EHPRA}
+The remaining gap is detour quality: HPRA decides \emph{when} to detour, but not optimally \emph{where} to detour. EHPRA fills this gap by adding path scoring and candidate ranking with lightweight local statistics.
+
+\section{Proposed Method: EHPRA}
+\subsection{Baseline Hybrid Framework}
+Like HPRA, EHPRA maintains two routing options per packet: (a) minimal-oblivious path and (b) detour path. A random draw with probability $p$ selects detour mode. The value of $p$ is adjusted online using fault feedback:
+\begin{itemize}
+    \item If a fault occurs while using minimal mode, $p$ increases by $p_{up}$.
+    \item If a fault occurs while using detour mode, $p$ decreases by $p_{down}$.
+    \item A small decay $p_{decay}$ is continuously applied.
+\end{itemize}
+
+\subsection{Smart Detour Candidate Generation}
+For each source-destination pair, EHPRA computes the bounding box and generates up to $k$ candidate intermediate nodes, mostly outside the bounding box, with detour radius influenced by $p$:
+\begin{equation}
+\Delta = \max\left(1, \left\lfloor p\cdot\max(R,C)\cdot k_{\Delta} \right\rfloor\right)
+\end{equation}
+where $R$ and $C$ are mesh dimensions. Higher $p$ allows wider exploration.
+
+\subsection{Congestion-Aware Path Scoring}
+For each candidate intermediate node, EHPRA builds a full path and computes
+\begin{equation}
+\mathrm{Score}(P) = \sum_{(u,v)\in P} w(u,v)\cdot U(u,v) + \lambda\cdot H(P)
+\end{equation}
+where $U(u,v)$ is historical link usage, $H(P)$ is path hop count, and $\lambda$ is hop penalty.
+
+Destination-aware weighting is defined by Manhattan distance $d$ from link endpoints to destination:
+\begin{equation}
+w(u,v)=1+\frac{6}{d+1}
+\end{equation}
+Therefore, congested links near the destination are penalized more strongly, improving hotspot behavior.
+
+\subsection{Fault Injection and Adaptation}
+During simulation, periodically selected hot links are marked faulty for a fixed duration. A packet incurs a fault event when its chosen route traverses the active faulty link. These fault observations drive the adaptive probability update described above.
+
+\begin{figure}[H]
+    \centering
+    \includegraphics[width=0.68\textwidth]{Results/RouterArchitecture.jpeg}
+    \caption{Routing architecture used in the simulator workflow.}
+\end{figure}
+
+\begin{figure}[H]
+    \centering
+    \includegraphics[page=1,width=0.9\textwidth]{Results/Smart Detour Explanation (ehpra).pdf}
+    \caption{Smart Detour design concept included in project artifacts.}
+\end{figure}
+
+\section{Experimental Setup}
+\subsection{Topology and Traffic}
+\begin{itemize}
+    \item Topology: 16$\times$16 2D mesh.
+    \item Hotlink: fixed source $(2,3)$ and destination $(5,6)$.
+    \item Hotspot: random source nodes targeting destination $(8,8)$.
+\end{itemize}
+
+\subsection{Compared Algorithms}
+\begin{enumerate}
+    \item EHPRA (proposed)
+    \item HPRA
+    \item Minimal-oblivious
+    \item Random detour
+    \item XY
+\end{enumerate}
+
+\subsection{Simulation Parameters}
+Trials per algorithm per scenario are 1,000,000 with fault period 10, fault duration 5, hot-threshold 3, and adaptive parameters $p_{up}=0.01$, $p_{down}=0.01$, and $p_{decay}=0.0005$.
+
+\subsection{Evaluation Metrics}
+Three metrics are reported: total fault count, average hop count, and weighted overall cost:
+\begin{equation}
+\mathrm{Cost} = w_f\cdot\frac{F}{F_{max}} + w_h\cdot\frac{H}{H_{max}},\quad w_f=0.8,\;w_h=0.2
+\end{equation}
+Lower cost values are better.
+
+\section{Results and Discussion}
+\subsection{Hotspot Traffic Results}
+\begin{table}[H]
+\centering
+\caption{Hotspot scenario quantitative results.}
+\begin{tabular}{lcc}
+\toprule
+Algorithm & Total Faults & Avg Hops \\
+\midrule
+EHPRA & 150,320 & 13.02 \\
+HPRA & 167,566 & 10.07 \\
+Minimal & 193,770 & 10.03 \\
+Detour & 232,711 & 25.43 \\
+XY & 250,971 & 9.03 \\
+\bottomrule
+\end{tabular}
+\end{table}
+
+Key observations are: (1) EHPRA achieves the lowest fault count, reducing faults by 10.29\% versus HPRA; (2) EHPRA also reduces faults by 22.42\% versus Minimal and 40.10\% versus XY; and (3) although hop count increases compared with strictly minimal paths, weighted cost remains best because reliability gains dominate.
+
+\subsection{Hotlink Traffic Results}
+\begin{table}[H]
+\centering
+\caption{Hotlink scenario quantitative results.}
+\begin{tabular}{lcc}
+\toprule
+Algorithm & Total Faults & Avg Hops \\
+\midrule
+EHPRA & 213,375 & 12.66 \\
+HPRA & 293,112 & 14.09 \\
+Minimal & 375,388 & 8.00 \\
+Detour & 458,702 & 28.83 \\
+XY & 499,995 & 7.00 \\
+\bottomrule
+\end{tabular}
+\end{table}
+
+In hotlink traffic, EHPRA again gives the best reliability, reducing faults by 27.20\% versus HPRA, 43.16\% versus Minimal, and 57.32\% versus XY. Unlike hotspot behavior, EHPRA also improves hop count compared with HPRA (12.66 vs. 14.09), showing that informed detours can be both safer and shorter than uninformed detours.
+
+\begin{figure}[H]
+    \centering
+    \includegraphics[width=0.9\textwidth]{Results/Hotspot-5way-figure.pdf}
+    \caption{Five-way comparison in hotspot traffic (project-generated plot).}
+\end{figure}
+
+\begin{figure}[H]
+    \centering
+    \includegraphics[width=0.9\textwidth]{Results/Hotlink-5way-figure.pdf}
+    \caption{Five-way comparison in hotlink traffic (project-generated plot).}
+\end{figure}
+
+\subsection{Overall Cost Analysis}
+Using $w_f=0.8$ and $w_h=0.2$, the computed costs are:
+\begin{itemize}
+    \item Hotspot: EHPRA $=0.5816$, HPRA $=0.6133$, Minimal $=0.6965$, Detour $=0.9418$, XY $=0.8710$.
+    \item Hotlink: EHPRA $=0.4292$, HPRA $=0.5667$, Minimal $=0.6561$, Detour $=0.9339$, XY $=0.8486$.
+\end{itemize}
+EHPRA ranks first in both scenarios.
+
+\section{Conclusions}
+This paper introduced EHPRA, an enhancement to HPRA that combines probabilistic mode adaptation with a congestion-aware Smart Detour mechanism. Experimental results on a 16$\times$16 mesh under one million-trial hotspot and hotlink scenarios show consistent superiority in fault reduction and weighted routing cost over HPRA, Minimal, Detour, and XY routing. EHPRA is especially effective in reducing vulnerability to repeated hot-link failures by selecting detour paths using destination-aware link-usage scoring.
+
+Given its low computational complexity and strong reliability gains, EHPRA is a promising candidate for practical adaptive NoC routing where fault resilience is as important as latency.
+
+\section*{Acknowledgments}
+The authors acknowledge the support of the research environment and simulation framework developed at Amirkabir University of Technology for this study.
+
+\section*{Nomenclature}
+\begin{tabular}{>{\raggedright\arraybackslash}p{2.8cm}p{11cm}}
+$p$ & Probability of selecting detour mode \\
+$p_{up}$ & Increment in $p$ after fault in minimal mode \\
+$p_{down}$ & Decrement in $p$ after fault in detour mode \\
+$p_{decay}$ & Continuous decay term of $p$ \\
+$U(u,v)$ & Historical usage of link $(u,v)$ \\
+$\lambda$ & Hop-count penalty coefficient \\
+$F$ & Total faults \\
+$H$ & Average hops \\
+\end{tabular}
+
+\section*{References}
+[1] A. Akhbari, H. Khoojooyan, and M. Tarighi, ``HPRA: Hybrid Probabilistic Routing Algorithm for 2D Mesh NoC,'' International Conference on Electrical, Computer and Mechanical Engineering.
+
+[2] W. J. Dally and B. Towles, \emph{Principles and Practices of Interconnection Networks}. San Francisco, CA, USA: Morgan Kaufmann, 2004.
+
+[3] L. Benini and G. De Micheli, ``Networks on chips: A new SoC paradigm,'' \emph{Computer}, vol. 35, no. 1, pp. 70--78, 2002.
+
+[4] J. Duato, S. Yalamanchili, and L. Ni, \emph{Interconnection Networks: An Engineering Approach}. San Francisco, CA, USA: Morgan Kaufmann, 2002.
+
+\end{document}
